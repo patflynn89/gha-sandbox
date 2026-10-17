@@ -1,0 +1,23 @@
+# SYMPTOM: "denied: permission_denied: write_package" when pushing the image.
+name: B5 - ghcr denied
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: app
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/shopcart:test

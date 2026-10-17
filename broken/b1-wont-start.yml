@@ -1,0 +1,11 @@
+# SYMPTOM: GitHub shows "Invalid workflow file" and the workflow never runs.
+name: B1 - won't start
+
+on:
+  push:
+
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v7
+      - run: echo "hello"

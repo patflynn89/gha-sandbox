@@ -1,0 +1,26 @@
+# Caller -> place at .github/workflows/07-caller.yml
+name: 07 - Reusable caller
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-312:
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      python-version: "3.12"
+
+  test-313:
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      python-version: "3.13"
+
+  summary:
+    needs: [test-312, test-313]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "3.12 passed: ${{ needs.test-312.outputs.passed }}"
+          echo "3.13 passed: ${{ needs.test-313.outputs.passed }}"

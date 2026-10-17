@@ -1,0 +1,20 @@
+# Apply with: kubectl apply -n argocd -f gitops/argocd/application.yaml
+# Replace CHANGE_ME with your GitHub username first.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shopcart
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/CHANGE_ME/gha-sandbox.git
+    targetRevision: main
+    path: gitops/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: shopcart
+  syncPolicy:
+    automated:
+      prune: true      # delete resources removed from Git
+      selfHeal: true   # revert manual kubectl changes (try it!)

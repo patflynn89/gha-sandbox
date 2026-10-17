@@ -1,0 +1,39 @@
+name: 09 - Release on tag
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write        # create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check tag matches pyproject version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(grep -m1 '^version' app/pyproject.toml | cut -d'"' -f2)
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Tag v$tag does not match pyproject version $pkg"
+            exit 1
+          fi
+
+      - name: Test & build
+        working-directory: app
+        run: |
+          pip install -e ".[dev]" build
+          pytest
+          python -m build --outdir dist/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" app/dist/* --generate-notes --title "$GITHUB_REF_NAME"

@@ -1,0 +1,14 @@
+# SYMPTOM: "ERROR: file or directory not found: app" / pyproject.toml missing.
+name: B2 - file not found
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install -e "app[dev]"
+      - run: pytest app

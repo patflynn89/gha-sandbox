@@ -1,0 +1,29 @@
+# Reusable workflow -> place at .github/workflows/reusable-test.yml
+# Jenkins analogue: a shared-library pipeline template
+name: Reusable - test
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.13"
+    outputs:
+      passed:
+        description: "true when tests passed"
+        value: ${{ jobs.test.outputs.passed }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.result.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-app
+        with:
+          python-version: ${{ inputs.python-version }}
+      - run: ruff check app
+      - run: pytest app
+      - id: result
+        run: echo "passed=true" >> "$GITHUB_OUTPUT"

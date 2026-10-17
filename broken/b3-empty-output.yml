@@ -1,0 +1,20 @@
+# SYMPTOM: The "use" job prints "Version is: " (empty).
+name: B3 - empty output
+
+on: [push]
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+    steps:
+      - name: Compute
+        run: echo "version=1.2.3" >> "$GITHUB_ENV"
+
+  use:
+    needs: produce
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Version is: ${{ needs.produce.outputs.version }}"

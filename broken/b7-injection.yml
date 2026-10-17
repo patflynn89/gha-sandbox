@@ -1,0 +1,12 @@
+# SYMPTOM: It "works"... but a reviewer flags it as a security hole. Why?
+# Hint: open a PR titled:   a"; echo "pwned
+name: B7 - works but dangerous
+
+on: pull_request
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Thanks for the PR: ${{ github.event.pull_request.title }}"

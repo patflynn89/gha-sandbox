@@ -1,0 +1,59 @@
+name: 05 - Jobs, needs & outputs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calc.outputs.version }}
+      short_sha: ${{ steps.calc.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: calc
+        name: Compute version
+        run: |
+          base=$(grep -m1 '^version' app/pyproject.toml | cut -d'"' -f2)
+          short_sha=${GITHUB_SHA::7}
+          echo "version=${base}+${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${short_sha}"       >> "$GITHUB_OUTPUT"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install ruff && ruff check app
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install -e "app[dev]" && pytest app
+
+  # Fan-in: runs only after lint AND test succeed; reads version from first job.
+  report:
+    needs: [version, lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write job summary
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          {
+            echo "## Build report"
+            echo ""
+            echo "| Key | Value |"
+            echo "|-----|-------|"
+            echo "| Version | \`$VERSION\` |"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Test | ${{ needs.test.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,23 @@
+# SYMPTOM: "deploy" is always skipped when "test-windows" is skipped,
+#          even though "test-linux" passed. (Classic!)
+name: B8 - skipped deploy
+
+on: [push]
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+
+  test-windows:
+    if: github.ref == 'refs/heads/release'
+    runs-on: windows-latest
+    steps:
+      - run: echo ok
+
+  deploy:
+    needs: [test-linux, test-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "deploying"

@@ -1,0 +1,64 @@
+# The same pipeline as exercises 02-05 + 08, written for GitLab CI.
+# File name in a GitLab repo: .gitlab-ci.yml (exactly ONE file, unlike GHA).
+# Compare side-by-side with the GHA solutions. The concepts map 1:1.
+
+stages: [lint, test, build, publish]
+
+default:
+  image: python:3.13-slim          # GHA: runs-on + setup-python. GitLab: a container image
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+workflow:                          # GHA: on: push / pull_request
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.python-setup:                     # GHA: composite action. GitLab: hidden job + extends
+  cache:
+    key:
+      files: [app/pyproject.toml]
+    paths: [.cache/pip]
+  before_script:
+    - pip install -e "app[dev]"
+
+lint:
+  stage: lint
+  extends: .python-setup
+  script:
+    - ruff check app
+
+test:
+  stage: test
+  extends: .python-setup
+  image: python:${PY}-slim
+  parallel:
+    matrix:                        # GHA: strategy.matrix
+      - PY: ["3.11", "3.12", "3.13"]
+  script:
+    - pytest app --junitxml=report.xml
+  artifacts:                       # GHA: upload-artifact (and GitLab renders JUnit natively)
+    when: always
+    reports:
+      junit: report.xml
+
+build-wheel:
+  stage: build
+  needs: [test]                    # GHA: needs (GitLab default = stage order)
+  script:
+    - pip install build
+    - python -m build --wheel --outdir dist/ app
+  artifacts:
+    paths: [dist/]
+
+docker:
+  stage: publish
+  image: docker:27
+  services: [docker:27-dind]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH   # GHA: if: github.ref == 'refs/heads/main'
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build --build-arg APP_VERSION="$CI_COMMIT_SHORT_SHA" -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" app
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
